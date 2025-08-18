@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'base.css' %}">
+    {% block extra_css %}{% endblock %}
+    <title>Document</title>
+</head>
+<body>
+    <!-- <h1>ok</h1> -->
+    <!-- First Navbar -->
+     <!-- <h1>hiii heyaa</h1> -->
+    <nav class="main-navbar">
+        <div class="logo">MyShop</div>
+<!-- my searchbar here -->
+        <div class="searchbar">
+            <form action="{% url 'search_results' %}" method="get">
+                <input type="text" name="q" placeholder="Search products..." required>
+                <button type="submit">Search</button>
+            </form>
+        </div>
+`
+        <div class="nav-links">
+            <a href="{% url 'scrapedsites' %}">scrapingsites</a>
+            <a href="{% url 'contact' %}">Contact</a>
+        </div>
+    </nav>
+    
+    <!-- Second Navbar (Selection Panel) -->
+    <div class="selection-panel">
+        <div><a href="">Mobiles</a></div>
+        <div><a href="">Laptops</a></div>
+        <!-- i want this dropdown -->
+        <div><a href="">Clothes</a></div>
+        <!-- i want this dropdown -->
+        <div><a href="#">Accessories</a></div> 
+        <!-- i want this dropdown -->
+        <div><a href="#">Electronics</a></div>
+        <!-- i want this dropdown -->
+        <div><a href="#"></a></div>
+    </div>
+
+
+
+
+
+    {% comment %} main thing here... {% endcomment %}
+    {% block content %}{% endblock %}
+
+
+
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2025 MyShop. All Rights Reserved.</p>
+    </footer>
+
+</body>
+</html>
+
+
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'home.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- Main Content -->
+<main class="content">
+    <h2>Featured Products</h2>
+    <!-- you said you’ll handle rows here -->
+</main>
+{% endblock %}from django.shortcuts import render
+
+# Create your views here.
+from bs4 import BeautifulSoup
+import requests
+
+def home(request):
+    url = 'https://www.meesho.com/'
+    
+    text = requests.get(url).text
+    
+    
+    # data = 
+    return render(request,'home.html')  
+
+def scrapedsites(request):
+    return render(request,'scrapedsites.html')
+
+def contact(request):
+    return render(request,'contact.html')
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f9f9f9;
+        }
+
+        .container {
+            width: 50%;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #007BFF;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+        h1{display: flex;
+        justify-self: center;}
+    </style>
+</head>
+
+<body>
+<h1>Te</h1>
+    <div class="container">
+        <h2>Contact me</h2>
+        <form action="submit_form.php" method="post">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" placeholder="Enter your name" required>
+
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="Enter your email" required>
+
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" placeholder="Write your message here..." required></textarea>
+
+            <button type="submit">Send Message</button>
+        </form>
+    </div>
+
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f9f9f9;
+        }
+
+        .container {
+            width: 50%;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #007BFF;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+        h1{display: flex;
+        justify-self: center;}
+    </style>
+</head>
+
+<body>
+<h1>Te</h1>
+    <div class="container">
+        <h2>Contact me</h2>
+        <form action="submit_form.php" method="post">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" placeholder="Enter your name" required>
+
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="Enter your email" required>
+
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" placeholder="Write your message here..." required></textarea>
+
+            <button type="submit">Send Message</button>
+        </form>
+    </div>
+
+</body>
+</html>
