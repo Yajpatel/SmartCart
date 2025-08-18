@@ -13,21 +13,21 @@
     <!-- First Navbar -->
      <!-- <h1>hiii heyaa</h1> -->
     <nav class="main-navbar">
-        <div class="logo">MyShop</div>
+    <div class="logo"><a href="{% url 'home' %}">MyShop</a></div>
 
-        <!-- my searchbar here -->
-        <div class="searchbar">
-            <form action="{% url 'search_results' %}" method="get">
-                <input type="text" name="q" placeholder="Search products..." required>
-                <button type="submit">Search</button>
-            </form>
-        </div>
-`
-        <div class="nav-links">
-            <a href="{% url 'scrapedsites' %}">scrapingsites</a>
-            <a href="{% url 'contact' %}">Contact</a>
-        </div>
-    </nav>
+    {% comment %} This block is now active {% endcomment %}
+    <div class="searchbar">
+        <form action="{% url 'search_results' %}" method="get">
+            <input type="text" name="q" placeholder="Search products..." required>
+            <button type="submit">Search</button>
+        </form>
+    </div>
+
+    <div class="nav-links">
+        <a href="{% url 'scrapedsites' %}">scrapingsites</a>
+        <a href="{% url 'contact' %}">Contact</a>
+    </div>
+</nav>
     
     <!-- Second Navbar (Selection Panel) -->
     <div class="selection-panel">
