@@ -1,13 +1,14 @@
 /* Reset */
 
-h1{
+h1 {
     background-color: green;
 }
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family:'Times New Roman', Times, serif;
+    font-family: 'Times New Roman', Times, serif;
 }
 
 /* First Navbar */

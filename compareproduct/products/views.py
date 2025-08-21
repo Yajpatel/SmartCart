@@ -1,520 +1,202 @@
 from django.shortcuts import render
 from bs4 import BeautifulSoup
 import requests
-from base64 import b64decode
+from base64 import b64decode, urlsafe_b64encode, urlsafe_b64decode
 from urllib.parse import urljoin
-import os # Keep os for future use with environment variables
+import os
+import json
 
-# --- Main Views ---
+# IMPORTANT: Replace "YOUR_API_KEY" with your actual Zyte API key.
+ZYTE_API_KEY = "31d677029a054280a79b6086ad61db26"
 
-def home(request):
-    # Create a dictionary to hold all product categories
-    product_categories = {
-        "Laptops": get_home_products("laptop"),
-        "Mobiles": get_home_products("mobile"),
-        "Clothes": get_home_products("clothes"),
-        "Chocolates": get_home_products("chocolates"),
-    }
-    
-    # Pass this dictionary to the template
-    return render(request, 'home.html', {"product_categories": product_categories})
-
-def scrapedsites(request):
-    return render(request,'scrapedsites.html')
-
-def contact(request): 
-    return render(request,'contact.html')
-
-def search_results(request):
+def scrape_amazon_search(api_key, url):
     """
-    Handles the search query submitted by the user.
+    Scrapes an Amazon search results page.
     """
-    query = request.GET.get('q')
-    products = {}
-    if query:
-        # We reuse the same function from the homepage, but get more results
-        products = get_search_products(query) 
-    
-    context = {
-        "products": products,
-        "query": query
-    }
-    
-    return render(request, 'searchresults.html', context)
+    if api_key == "YOUR_API_KEY" or not api_key:
+        print("❌ Error: Please replace 'YOUR_API_KEY' with your actual Zyte API key.")
+        return None
 
+    print(f"▶️  Sending request to Zyte API for URL: {url}")
 
-# --- Data Aggregator Functions ---
-
-def get_home_products(query):
-    """ Gathers the top 5 products from each site for the homepage. """
-    data = {
-        "amazon": amazon(query, limit=5),
-        "flipkart": flipkart(query, limit=5),
-        "meesho": meesho(query, limit=5),
-        "myntra": myntra(query, limit=5),
-        "tatacliq": tatacliq(query, limit=5),
-        "snapdeal": snapdeal(query, limit=5),
-    }
-    
-    # ADD THIS DEBUGGING BLOCK
-    print(f"Amazon results: {len(data['amazon'])}")
-    print(f"Flipkart results: {len(data['flipkart'])}")
-    print(f"Meesho results: {len(data['meesho'])}")
-    print(f"Myntra results: {len(data['myntra'])}")
-    print(f"Tatacliq results: {len(data['tatacliq'])}")
-    print(f"Snapdeal results: {len(data['snapdeal'])}")
-    print("--- Finished scrapers ---")
-    
-    return data
-
-def get_search_products(query):
-    """ Gathers more products for the search results page. """
-    data = {
-        "amazon": amazon(query, limit=20),
-        "flipkart": flipkart(query, limit=20),
-        "meesho": meesho(query, limit=20),
-        "myntra": myntra(query, limit=20),
-        "tatacliq": tatacliq(query, limit=20),
-        "snapdeal": snapdeal(query, limit=20),
-    }
-    return data
-
-
-# --- Web Scraping Logic ---
-
-def fetch_with_zyte(url):
-    # IMPORTANT: Move this API key to your settings.py or environment variables!
-    # Example: API_KEY = os.environ.get("ZYTE_API_KEY")
-    API_KEY = "31d677029a054280a79b6086ad61db26"
-    
     try:
         response = requests.post(
             "https://api.zyte.com/v1/extract",
-            auth=(API_KEY, ""),
-            json={
-                "url": url,
-                "httpResponseBody": True,
-            },
-            timeout=60 # Add a timeout
+            auth=(api_key, ""),
+            json={"url": url, "httpResponseBody": True},
+            timeout=90
         )
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
-        http_body = b64decode(response.json().get("httpResponseBody", ""))
-        return http_body.decode("utf-8", errors="ignore")
+        response.raise_for_status()
+        api_response_json = response.json()
+        html_body_bytes = b64decode(api_response_json["httpResponseBody"])
+        soup = BeautifulSoup(html_body_bytes, 'html.parser')
+        
+        products = []
+        result_items = soup.find_all('div', {'data-component-type': 's-search-result'})
+        
+        if not result_items:
+            print("⚠️ No product items found on search page.")
+            return []
+
+        for item in result_items:
+            title_element = item.find('h2')
+            title = title_element.get_text(strip=True) if title_element else None
+
+            price = None
+            price_whole = item.find('span', class_='a-price-whole')
+            price_fraction = item.find('span', class_='a-price-fraction')
+            if price_whole and price_fraction:
+                price = f"${price_whole.text}{price_fraction.text}"
+            else:
+                price_offscreen = item.find('span', class_='a-offscreen')
+                if price_offscreen:
+                    price = price_offscreen.get_text(strip=True)
+
+            url_element = item.find('a', class_='a-link-normal')
+            product_url = "https://www.amazon.com" + url_element['href'] if url_element else None
+            
+            image_element = item.find('img', class_='s-image')
+            image_url = image_element['src'] if image_element else None
+
+            if title and product_url and "spons" not in product_url:
+                encoded_url = urlsafe_b64encode(product_url.encode()).decode()
+                products.append({
+                    'title': title,
+                    'price': price,
+                    'url': product_url,
+                    'image_url': image_url,
+                    'encoded_url': encoded_url
+                })
+        
+        return products
+
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching URL with Zyte: {e}")
+        print(f"❌ An error occurred during the API request: {e}")
+        return None
+    except Exception as e:
+        print(f"❌ An unexpected error occurred during search parsing: {e}")
         return None
 
-def amazon(query, limit=5):
-    try:
-        print(f"-> Scraping Amazon for '{query}'...")
-        url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
-        html = fetch_with_zyte(url)
-        if not html:
-            print("   - Amazon: Failed to get HTML from Zyte.")
-            return []
-            
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-        for item in soup.select("div.s-result-item[data-asin]"):
-            title_tag = item.select_one("h2 a span")
-            price_whole = item.select_one(".a-price-whole")
-            link_tag = item.select_one("h2 a")
-            image_tag = item.select_one("img.s-image")
-
-            if title_tag and price_whole and link_tag and image_tag:
-                results.append({
-                    "title": title_tag.get_text(strip=True),
-                    "price": f"₹{price_whole.get_text(strip=True)}",
-                    "link": urljoin(url, link_tag['href']),
-                    "image_url": image_tag['src']
-                })
-                if len(results) >= limit: break
-        print(f"   - Amazon: Found {len(results)} items.")
-        return results
-    except Exception as e:
-        print(f"   - ERROR in amazon scraper: {e}")
-        return []
-
-def flipkart(query, limit=5):
-    try:
-        print(f"-> Scraping Flipkart for '{query}'...")
-        url = f"https://www.flipkart.com/search?q={query.replace(' ', '+')}"
-        html = fetch_with_zyte(url)
-        if not html:
-            print("   - Flipkart: Failed to get HTML from Zyte.")
-            return []
-
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-        for item in soup.select("div._1AtVbE, div._4ddWXP, div._2kHMtA, div.slAVV4"):
-            title_tag = item.select_one("div._4rR01T, a.s1Q9rs, .IRpwTa, a.wjcEIp")
-            price_tag = item.select_one("div._30jeq3")
-            link_tag = item.select_one("a._1fQZEK, a.s1Q9rs, a._2UzuFa, a.wjcEIp")
-            image_tag = item.select_one("img._396cs4, img._2r_T1I")
-            
-            if title_tag and price_tag and link_tag and image_tag:
-                results.append({
-                    "title": title_tag.get_text(strip=True),
-                    "price": price_tag.get_text(strip=True),
-                    "link": urljoin(url, link_tag['href']),
-                    "image_url": image_tag.get('src')
-                })
-                if len(results) >= limit: break
-        print(f"   - Flipkart: Found {len(results)} items.")
-        return results
-    except Exception as e:
-        print(f"   - ERROR in flipkart scraper: {e}")
-        return []
-
-def direct_scrape(url):
-    # Utility for direct scraping, error handling is in the calling function.
-    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-    response.raise_for_status()
-    return response.text
-
-def meesho(query, limit=5):
-    try:
-        print(f"-> Scraping Meesho for '{query}'...")
-        base_url = "https://www.meesho.com"
-        url = f"{base_url}/search?q={query}"
-        html = direct_scrape(url)
-        if not html: return []
-        
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-        for item in soup.select("a[href*='/p/']"):
-            title_tag = item.select_one("p.NewProductCard__ProductTitle_nowrap-one")
-            price_tag = item.select_one("h5.Text__h5")
-            image_tag = item.select_one("img")
-
-            if title_tag and price_tag and image_tag:
-                results.append({
-                    "title": title_tag.get_text(strip=True),
-                    "price": price_tag.get_text(strip=True),
-                    "link": urljoin(base_url, item['href']),
-                    "image_url": image_tag.get('src')
-                })
-                if len(results) >= limit: break
-        print(f"   - Meesho: Found {len(results)} items.")
-        return results
-    except Exception as e:
-        print(f"   - ERROR in meesho scraper: {e}")
-        return []
-
-def myntra(query, limit=5):
-    try:
-        print(f"-> Scraping Myntra for '{query}'...")
-        base_url = "https://www.myntra.com"
-        url = f"{base_url}/{query.replace(' ', '-')}"
-        html = direct_scrape(url)
-        if not html: return []
-        
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-        for item in soup.select("li.product-base"):
-            title_tag = item.select_one(".product-product")
-            price_container = item.select_one(".product-price")
-            image_tag = item.select_one("picture.img-responsive img")
-            link_tag = item.select_one("a")
-
-            if title_tag and price_container and image_tag and link_tag:
-                price_tag = price_container.select_one("span.product-discountedPrice") or price_container.select_one("span")
-                results.append({
-                    "title": title_tag.get_text(strip=True),
-                    "price": price_tag.get_text(strip=True),
-                    "link": urljoin(base_url, link_tag['href']),
-                    "image_url": image_tag.get('src')
-                })
-                if len(results) >= limit: break
-        print(f"   - Myntra: Found {len(results)} items.")
-        return results
-    except Exception as e:
-        print(f"   - ERROR in myntra scraper: {e}")
-        return []
-
-def tatacliq(query, limit=5):
-    try:
-        print(f"-> Scraping TataCliq for '{query}'...")
-        base_url = "https://www.tatacliq.com"
-        url = f"{base_url}/search/?searchCategory=all&text={query}"
-        html = direct_scrape(url)
-        if not html: return []
-
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-        for item in soup.select(".ProductModule__base"):
-            title_tag = item.select_one(".ProductDescription__name")
-            price_tag = item.select_one(".ProductDescription__price-value")
-            link_tag = item.select_one("a")
-            image_tag = item.select_one("img.Image__actual-image")
-
-            if title_tag and price_tag and link_tag and image_tag:
-                results.append({
-                    "title": title_tag.get_text(strip=True),
-                    "price": f"₹{price_tag.get_text(strip=True)}",
-                    "link": urljoin(base_url, link_tag['href']),
-                    "image_url": image_tag.get('src')
-                })
-                if len(results) >= limit: break
-        print(f"   - TataCliq: Found {len(results)} items.")
-        return results
-    except Exception as e:
-        print(f"   - ERROR in tatacliq scraper: {e}")
-        return []
-
-def snapdeal(query, limit=5):
-    try:
-        print(f"-> Scraping Snapdeal for '{query}'...")
-        base_url = "https://www.snapdeal.com"
-        url = f"{base_url}/search?keyword={query}"
-        html = direct_scrape(url)
-        if not html: return []
-        
-        soup = BeautifulSoup(html, "html.parser")
-        results = []
-        for item in soup.select(".product-tuple-listing"):
-            title_tag = item.select_one(".product-title")
-            price_tag = item.select_one(".product-price")
-            link_tag = item.select_one("a.dp-widget-link")
-            image_tag = item.select_one(".product-tuple-image img")
-
-            if title_tag and price_tag and link_tag and image_tag:
-                image_src = image_tag.get('data-src') or image_tag.get('src')
-                results.append({
-                    "title": title_tag.get_text(strip=True),
-                    "price": price_tag.get_text(strip=True).replace("Rs. ", "₹"),
-                    "link": link_tag['href'],
-                    "image_url": image_src
-                })
-                if len(results) >= limit: break
-        print(f"   - Snapdeal: Found {len(results)} items.")
-        return results
-    except Exception as e:
-        print(f"   - ERROR in snapdeal scraper: {e}")
-        return []
-
-
-# from django.shortcuts import render
-# from bs4 import BeautifulSoup
-# import requests
-# from base64 import b64decode
-# import json
-# import concurrent.futures # Import for concurrent scraping
-
-# # --- Helper Functions with Error Handling ---
-
-# def fetch_with_zyte(url):
-#     """
-#     Fetches content from a URL using the Zyte API with robust error handling.
-#     Returns the HTML content as a string, or None if an error occurs.
-#     """
-#     # NOTE: It's highly recommended to move this key to your Django settings.py
-#     # and load it using `from django.conf import settings`.
-#     API_KEY = "31d677029a054280a79b6086ad61db26" 
+def scrape_product_details(api_key, product_url):
+    """
+    Scrapes a single product detail page for detailed information.
+    """
+    if api_key == "YOUR_API_KEY" or not api_key:
+        return None
     
-#     try:
-#         response = requests.post(
-#             "https://api.zyte.com/v1/extract",
-#             auth=(API_KEY, ""),
-#             json={
-#                 "url": url,
-#                 "httpResponseBody": True,
-#                 "browserHtml": True,
-#             },
-#             timeout=30 # Add a timeout to prevent hanging indefinitely
-#         )
-#         # Raise an exception for bad status codes (like 404, 500)
-#         response.raise_for_status() 
+    print(f"▶️  Scraping detail page: {product_url}")
+    try:
+        response = requests.post(
+            "https://api.zyte.com/v1/extract",
+            auth=(api_key, ""),
+            json={"url": product_url, "httpResponseBody": True},
+            timeout=90
+        )
+        response.raise_for_status()
+        api_response_json = response.json()
+        html_body_bytes = b64decode(api_response_json["httpResponseBody"])
+        soup = BeautifulSoup(html_body_bytes, 'html.parser')
+
+        title = soup.find('span', id='productTitle').get_text(strip=True) if soup.find('span', id='productTitle') else "Not available"
         
-#         # Safely parse the JSON response and decode the body
-#         json_response = response.json()
-#         http_body_b64 = json_response.get("httpResponseBody")
+        rating_element = soup.find('span', class_='a-icon-alt')
+        rating = rating_element.get_text(strip=True) if rating_element else "No rating"
         
-#         if not http_body_b64:
-#             print(f"Zyte Error: 'httpResponseBody' not found in response for {url}")
-#             return None
-            
-#         http_body = b64decode(http_body_b64)
-#         return http_body.decode("utf-8", errors="ignore")
+        reviews_element = soup.find('span', id='acrCustomerReviewText')
+        reviews_count = reviews_element.get_text(strip=True) if reviews_element else "0 reviews"
 
-#     except requests.exceptions.RequestException as e:
-#         print(f"Network Error fetching {url} with Zyte: {e}")
-#         return None
-#     except (json.JSONDecodeError, KeyError, TypeError) as e:
-#         print(f"Error processing Zyte response for {url}: {e}")
-#         return None
+        price = None
+        price_element = soup.select_one('span.a-price .a-offscreen')
+        if price_element:
+            price = price_element.get_text(strip=True)
 
-
-# def fetch_direct(url):
-#     """
-#     Fetches content directly with standard headers and error handling.
-#     Returns the HTML content as a string, or None if an error occurs.
-#     """
-#     headers = {
-#         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-#     }
-#     try:
-#         response = requests.get(url, headers=headers, timeout=15)
-#         response.raise_for_status()
-#         return response.text
-#     except requests.exceptions.RequestException as e:
-#         print(f"Network Error fetching {url} directly: {e}")
-#         return None
-
-# # --- Scraping Functions (Now with Error Handling) ---
-
-# def amazon(query):
-#     html = fetch_with_zyte(f"https://www.amazon.in/s?k={query.replace(' ', '+')}")
-#     if not html:
-#         return [] # Return empty list if fetch failed
     
-#     soup = BeautifulSoup(html, "html.parser")
-#     results = []
-#     for item in soup.select("div.s-result-item"):
-#         try: # Add try/except for parsing each item
-#             title_tag = item.select_one("h2 a span")
-#             price_whole = item.select_one(".a-price-whole")
-#             link_tag = item.select_one("h2 a")
-
-#             if title_tag and price_whole and link_tag and link_tag.has_attr('href'):
-#                 price = price_whole.get_text(strip=True)
-#                 results.append({
-#                     "title": title_tag.get_text(strip=True),
-#                     "price": f"₹{price}",
-#                     "link": "https://www.amazon.in" + link_tag['href']
-#                 })
-#         except Exception as e:
-#             print(f"Error parsing an Amazon item: {e}")
-#     return results
-
-
-# def flipkart(query):
-#     html = fetch_with_zyte(f"https://www.flipkart.com/search?q={query.replace(' ', '+')}")
-#     if not html:
-#         return []
-
-#     soup = BeautifulSoup(html, "html.parser")
-#     results = []
-#     # Try multiple selectors as Flipkart's structure can vary
-#     for item in soup.select("div._1AtVbE, div._4ddWXP"): 
-#         try:
-#             title_tag = item.select_one("div._4rR01T, a.s1Q9rs")
-#             price_tag = item.select_one("div._30jeq3._1_WHN1, div._30jeq3")
-#             link_tag = item.select_one("a._1fQZEK, a.s1Q9rs")
-
-#             if title_tag and price_tag and link_tag and link_tag.has_attr('href'):
-#                 results.append({
-#                     "title": title_tag.get_text(strip=True),
-#                     "price": price_tag.get_text(strip=True),
-#                     "link": "https://www.flipkart.com" + link_tag['href']
-#                 })
-#         except Exception as e:
-#             print(f"Error parsing a Flipkart item: {e}")
-#     return results
-
-
-# def meesho(query):
-#     html = fetch_direct(f"https://www.meesho.com/search?q={query}")
-#     if not html:
-#         return []
         
-#     soup = BeautifulSoup(html, "html.parser")
-#     results = []
-#     # This selector is fragile and likely to break.
-#     for item in soup.select("div[class*='ProductList__GridCol']"):
-#         try:
-#             title = item.select_one("p")
-#             price = item.select_one("h5")
-#             if title and price:
-#                 results.append({
-#                     "title": title.get_text(strip=True),
-#                     "price": price.get_text(strip=True),
-#                     "link": "#" # Link not easily available
-#                 })
-#         except Exception as e:
-#             print(f"Error parsing a Meesho item: {e}")
-#     return results
-
-
-# def myntra(query):
-#     html = fetch_direct(f"https://www.myntra.com/{query}")
-#     if not html:
-#         return []
-
-#     soup = BeautifulSoup(html, "html.parser")
-#     results = []
-#     for item in soup.select(".product-base"):
-#         try:
-#             brand = item.select_one(".product-brand")
-#             product_name = item.select_one(".product-product")
-#             price = item.select_one(".product-discountedPrice, .product-price")
-#             link_tag = item.find("a", href=True)
-
-#             if brand and product_name and price and link_tag:
-#                 results.append({
-#                     "title": f"{brand.get_text(strip=True)} - {product_name.get_text(strip=True)}",
-#                     "price": price.get_text(strip=True),
-#                     "link": "https://www.myntra.com/" + link_tag['href']
-#                 })
-#         except Exception as e:
-#             print(f"Error parsing a Myntra item: {e}")
-#     return results
-
-# # ... (tatacliq and snapdeal functions would be updated similarly) ...
-# # For brevity, I'm showing the pattern. Apply the same try/except and
-# # fetch_direct logic to tatacliq and snapdeal.
-
-# # --- Performance Improvement: Concurrent Scraping ---
-
-# def get_home_products():
-#     """
-#     Scrapes all sites concurrently for a default query and returns the top 5 from each.
-#     """
-#     query = "laptop"
-#     data = {}
-    
-#     # List of functions to run, along with their site names
-#     scraper_tasks = {
-#         "amazon": amazon,
-#         "flipkart": flipkart,
-#         "meesho": meesho,
-#         "myntra": myntra,
-#         # "tatacliq": tatacliq,
-#         # "snapdeal": snapdeal,
-#     }
-    
-#     # Using ThreadPoolExecutor to run network requests in parallel
-#     with concurrent.futures.ThreadPoolExecutor(max_workers=len(scraper_tasks)) as executor:
-#         # Create a future for each scraper function
-#         future_to_site = {executor.submit(func, query): site for site, func in scraper_tasks.items()}
+        about_points = []
+        selector = "span.a-list-item.a-size-base.a-color-base"
         
-#         for future in concurrent.futures.as_completed(future_to_site):
-#             site = future_to_site[future]
-#             try:
-#                 # Get the result and take the first 5 items
-#                 result = future.result()
-#                 data[site] = result[:5]
-#                 print(f"Successfully scraped {len(result)} items from {site}.")
-#             except Exception as exc:
-#                 print(f"{site} scraper generated an exception: {exc}")
-#                 data[site] = [] # Return empty list on failure
+        # Directly select all matching elements from the entire soup object
+        about_elements = soup.select(selector)
+        
+        for element in about_elements:
+            # Clean up the text, as it can sometimes have hidden characters or extra spaces
+            text = ' '.join(element.get_text(strip=True).split())
+            if text: # Ensure we don't add empty strings
+                about_points.append(text)
+        # --- END OF DIRECT LOGIC ---
 
-#     return data
+        specifications = {}
+        tech_spec_table = soup.find('table', id='productDetails_techSpec_section_1')
+        if tech_spec_table:
+            for row in tech_spec_table.find_all('tr'):
+                th = row.find('th').get_text(strip=True) if row.find('th') else ''
+                td = row.find('td').get_text(strip=True) if row.find('td') else ''
+                if th and td:
+                    specifications[th] = td
+        
+        image_element = soup.find('img', id='landingImage')
+        image_url = image_element['src'] if image_element else ''
 
+        return {
+            'title': title,
+            'rating': rating,
+            'reviews_count': reviews_count,
+            'price': price,
+            'about_points': about_points,
+            'specifications': specifications,
+            'image_url': image_url,
+            'amazon_url': product_url
+        }
 
-# # --- Django Views ---
+    except Exception as e:
+        print(f"❌ An unexpected error occurred during detail parsing: {e}")
+        return None
 
-# def home(request):
-#     products = get_home_products()
-#     return render(request, 'home.html', {"products": products})
+def scraping(req):
+    """
+    Handles the home page and search requests.
+    """
+    product_query = req.GET.get('q', None)
+    context = {}
 
-# def scrapedsites(request):
-#     return render(request, 'scrapedsites.html')
+    if product_query:
+        print(f"▶️  Searching for: {product_query}")
+        amazon_url = f"https://www.amazon.com/s?k={product_query}"
+        scraped_products = scrape_amazon_search(ZYTE_API_KEY, amazon_url)
+        context = {
+            'scraped_product': scraped_products if scraped_products is not None else [],
+            'query': product_query
+        }
+    else:
+        print("▶️  Displaying home page with categorized products.")
+        categories = ['laptops', 'mobiles', 'shirts', 'electronics']
+        categorized_products = {}
+        for category in categories:
+            amazon_url = f"https://www.amazon.com/s?k={category}"
+            products = scrape_amazon_search(ZYTE_API_KEY, amazon_url)
+            if products:
+                categorized_products[category.title()] = products[:6]
+            else:
+                categorized_products[category.title()] = []
+        context = {
+            'categorized_products': categorized_products,
+            'query': None
+        }
+    
+    return render(req, 'home.html', context)
 
-# def contact(request):
-#     return render(request, 'contact.html')
+def product_detail(req, encoded_url):
+    """
+    Handles displaying the details for a single product.
+    """
+    try:
+        decoded_url = urlsafe_b64decode(encoded_url).decode()
+    except:
+        return render(req, 'product_detail.html', {'error': 'Invalid product URL.'})
+    
+    product_details = scrape_product_details(ZYTE_API_KEY, decoded_url)
 
-# # This view was empty. It must return an HttpResponse.
-# # I'll have it render a simple template for now.
-# def main(request):
-#     return render(request, 'main.html')
+    context = {
+        'product': product_details
+    }
+    return render(req, 'product_detail.html', context)

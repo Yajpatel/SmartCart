@@ -19,10 +19,12 @@ from django.urls import path
 from products import views
 urlpatterns = [ 
     path('admin/', admin.site.urls),
-    path('',views.home,name='home'),
-    path('scrapedsites/', views.scrapedsites, name='scrapedsites'),
-    path('contact/', views.contact, name='contact'),
-    # path('show/',views.show,name='show'),
-    path('search/', views.search_results, name='search_results'),
-    
+    # path('',views.scraping,name='home'),
+    # path('scrapedsites/', views.scrapedsites, name='scrapedsites'),
+    # path('contact/', views.contact, name='contact'),
+    # # path('show/',views.show,name='show'),
+    # path('search/', views.search_results, name='search_results'),
+    path('', views.scraping, name='home'),
+        path('product/<str:encoded_url>/', views.product_detail, name='product_detail'),
+
 ]

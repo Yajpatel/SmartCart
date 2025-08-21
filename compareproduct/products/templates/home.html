@@ -1,47 +1,84 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Home{% endblock %}
+{% block title %}Scraped Products{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'home.css' %}">
+<style>
+    .category-title {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #eee;
+        font-size: 1.8rem;
+        color: #333;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 <main class="content">
     
-    {% for category_name, sites in product_categories.items %}
-        
-        <h2>Featured {{ category_name }}</h2>
-
-        {% for site_name, products in sites.items %}
-            {% if products %}
-                <h3>{{ site_name|title }}</h3>
-                <div class="product-grid">
-                    {% for item in products %}
-                        <div class="product-card">
-                            <a href="{{ item.link }}" target="_blank" class="product-main-link">
-                                
-                                {% if item.image_url %}
-                                    <img src="{{ item.image_url }}" alt="{{ item.title }}" class="product-image">
+    <!-- Search Results Block -->
+    {% if query %}
+        <h2>Search Results for: "{{ query }}"</h2>
+        {% if scraped_product %}
+            <div class="product-grid">
+                {% for product in scraped_product %}
+                    <div class="product-card">
+                        <!-- UPDATED LINK: Points to the new detail page URL -->
+                        <a href="{% url 'product_detail' encoded_url=product.encoded_url %}" class="product-main-link">
+                            <div class="product-info">
+                                <img src="{{ product.image_url }}" alt="{{ product.title }}">
+                                <h4 class="product-title">{{ product.title|truncatechars:80 }}</h4>
+                                {% if product.price %}
+                                    <p class="product-price">{{ product.price }}</p>
                                 {% else %}
-                                    <div class="product-image-placeholder">No Image Available</div>
+                                    <p class="product-price">Price not available</p>
                                 {% endif %}
-                                
-                                <div class="product-info">
-                                    <h4 class="product-title">{{ item.title|truncatechars:60 }}</h4>
-                                    <p class="product-price">{{ item.price }}</p>
-                                </div>
-                            </a>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endfor %}
+                            </div>
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No products were found for your search. Please try another term.</p>
+        {% endif %}
 
-        <hr style="margin: 40px 0;">
-
-    {% endfor %}
+    <!-- Categorized Home Page Block -->
+    {% else %}
+        <h2>Featured Products</h2>
+        {% if categorized_products %}
+            {% for category, products in categorized_products.items %}
+                <h3 class="category-title">{{ category }}</h3>
+                {% if products %}
+                    <div class="product-grid">
+                        {% for product in products %}
+                            <div class="product-card">
+                                <!-- UPDATED LINK: Points to the new detail page URL -->
+                                <a href="{% url 'product_detail' encoded_url=product.encoded_url %}" class="product-main-link">
+                                    <div class="product-info">
+                                        <img src="{{ product.image_url }}" alt="{{ product.title }}">
+                                        <h4 class="product-title">{{ product.title|truncatechars:80 }}</h4>
+                                        {% if product.price %}
+                                            <p class="product-price">{{ product.price }}</p>
+                                        {% else %}
+                                            <p class="product-price">Price not available</p>
+                                        {% endif %}
+                                    </div>
+                                </a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p>Could not load products for this category.</p>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <p>Could not load any featured products at this time.</p>
+        {% endif %}
+    {% endif %}
 
 </main>
 {% endblock %}

@@ -1,0 +1,132 @@
+/* Main container for the product detail page */
+.product-detail-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Section for the product image */
+.product-image-section {
+    flex: 1 1 350px;
+    /* Flexbox settings for responsiveness */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.product-image-section img {
+    max-width: 100%;
+    max-height: 450px;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+/* Section for the product information */
+.product-info-section {
+    flex: 2 1 450px;
+    /* Takes up more space */
+}
+
+.product-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.product-ratings {
+    display: flex;
+    gap: 0.5rem;
+    color: #555;
+    margin-bottom: 1rem;
+}
+
+.product-price {
+    font-size: 2.2rem;
+    font-weight: bold;
+    color: #B12704;
+    /* Amazon's price color */
+    margin-bottom: 1rem;
+}
+
+.about-section {
+    margin-top: 1.5rem;
+}
+
+.about-section h3 {
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.about-section ul {
+    list-style-type: disc;
+    padding-left: 20px;
+    color: #333;
+}
+
+.about-section li {
+    margin-bottom: 0.6rem;
+    line-height: 1.6;
+}
+
+/* Button to view the product on Amazon */
+.amazon-link-button {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 12px 24px;
+    background-color: #FF9900;
+    /* Amazon's button color */
+    color: #111;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 1px solid #a88734;
+    transition: background-color 0.2s ease;
+    text-align: center;
+    font-size: 1rem;
+}
+
+.amazon-link-button:hover {
+    background-color: #f39c12;
+}
+
+/* Section for the specifications table */
+.specifications-section {
+    margin-top: 2rem;
+    background-color: #fff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.specifications-section h2 {
+    font-size: 1.6rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+}
+
+.spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.spec-table th,
+.spec-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.spec-table th {
+    background-color: #f8f8f8;
+    font-weight: 600;
+    width: 30%;
+}

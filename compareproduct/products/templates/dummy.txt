@@ -259,3 +259,230 @@ def contact(request):
 
 </body>
 </html>
+
+/////////////////////////////////////////////////////
+
+# from django.shortcuts import render
+# from bs4 import BeautifulSoup
+# import requests
+# from base64 import b64decode
+# import json
+# import concurrent.futures # Import for concurrent scraping
+
+# # --- Helper Functions with Error Handling ---
+
+# def fetch_with_zyte(url):
+#     """
+#     Fetches content from a URL using the Zyte API with robust error handling.
+#     Returns the HTML content as a string, or None if an error occurs.
+#     """
+#     # NOTE: It's highly recommended to move this key to your Django settings.py
+#     # and load it using `from django.conf import settings`.
+#     API_KEY = "31d677029a054280a79b6086ad61db26" 
+    
+#     try:
+#         response = requests.post(
+#             "https://api.zyte.com/v1/extract",
+#             auth=(API_KEY, ""),
+#             json={
+#                 "url": url,
+#                 "httpResponseBody": True,
+#                 "browserHtml": True,
+#             },
+#             timeout=30 # Add a timeout to prevent hanging indefinitely
+#         )
+#         # Raise an exception for bad status codes (like 404, 500)
+#         response.raise_for_status() 
+        
+#         # Safely parse the JSON response and decode the body
+#         json_response = response.json()
+#         http_body_b64 = json_response.get("httpResponseBody")
+        
+#         if not http_body_b64:
+#             print(f"Zyte Error: 'httpResponseBody' not found in response for {url}")
+#             return None
+            
+#         http_body = b64decode(http_body_b64)
+#         return http_body.decode("utf-8", errors="ignore")
+
+#     except requests.exceptions.RequestException as e:
+#         print(f"Network Error fetching {url} with Zyte: {e}")
+#         return None
+#     except (json.JSONDecodeError, KeyError, TypeError) as e:
+#         print(f"Error processing Zyte response for {url}: {e}")
+#         return None
+
+
+# def fetch_direct(url):
+#     """
+#     Fetches content directly with standard headers and error handling.
+#     Returns the HTML content as a string, or None if an error occurs.
+#     """
+#     headers = {
+#         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+#     }
+#     try:
+#         response = requests.get(url, headers=headers, timeout=15)
+#         response.raise_for_status()
+#         return response.text
+#     except requests.exceptions.RequestException as e:
+#         print(f"Network Error fetching {url} directly: {e}")
+#         return None
+
+# # --- Scraping Functions (Now with Error Handling) ---
+
+# def amazon(query):
+#     html = fetch_with_zyte(f"https://www.amazon.in/s?k={query.replace(' ', '+')}")
+#     if not html:
+#         return [] # Return empty list if fetch failed
+    
+#     soup = BeautifulSoup(html, "html.parser")
+#     results = []
+#     for item in soup.select("div.s-result-item"):
+#         try: # Add try/except for parsing each item
+#             title_tag = item.select_one("h2 a span")
+#             price_whole = item.select_one(".a-price-whole")
+#             link_tag = item.select_one("h2 a")
+
+#             if title_tag and price_whole and link_tag and link_tag.has_attr('href'):
+#                 price = price_whole.get_text(strip=True)
+#                 results.append({
+#                     "title": title_tag.get_text(strip=True),
+#                     "price": f"₹{price}",
+#                     "link": "https://www.amazon.in" + link_tag['href']
+#                 })
+#         except Exception as e:
+#             print(f"Error parsing an Amazon item: {e}")
+#     return results
+
+
+# def flipkart(query):
+#     html = fetch_with_zyte(f"https://www.flipkart.com/search?q={query.replace(' ', '+')}")
+#     if not html:
+#         return []
+
+#     soup = BeautifulSoup(html, "html.parser")
+#     results = []
+#     # Try multiple selectors as Flipkart's structure can vary
+#     for item in soup.select("div._1AtVbE, div._4ddWXP"): 
+#         try:
+#             title_tag = item.select_one("div._4rR01T, a.s1Q9rs")
+#             price_tag = item.select_one("div._30jeq3._1_WHN1, div._30jeq3")
+#             link_tag = item.select_one("a._1fQZEK, a.s1Q9rs")
+
+#             if title_tag and price_tag and link_tag and link_tag.has_attr('href'):
+#                 results.append({
+#                     "title": title_tag.get_text(strip=True),
+#                     "price": price_tag.get_text(strip=True),
+#                     "link": "https://www.flipkart.com" + link_tag['href']
+#                 })
+#         except Exception as e:
+#             print(f"Error parsing a Flipkart item: {e}")
+#     return results
+
+
+# def meesho(query):
+#     html = fetch_direct(f"https://www.meesho.com/search?q={query}")
+#     if not html:
+#         return []
+        
+#     soup = BeautifulSoup(html, "html.parser")
+#     results = []
+#     # This selector is fragile and likely to break.
+#     for item in soup.select("div[class*='ProductList__GridCol']"):
+#         try:
+#             title = item.select_one("p")
+#             price = item.select_one("h5")
+#             if title and price:
+#                 results.append({
+#                     "title": title.get_text(strip=True),
+#                     "price": price.get_text(strip=True),
+#                     "link": "#" # Link not easily available
+#                 })
+#         except Exception as e:
+#             print(f"Error parsing a Meesho item: {e}")
+#     return results
+
+
+# def myntra(query):
+#     html = fetch_direct(f"https://www.myntra.com/{query}")
+#     if not html:
+#         return []
+
+#     soup = BeautifulSoup(html, "html.parser")
+#     results = []
+#     for item in soup.select(".product-base"):
+#         try:
+#             brand = item.select_one(".product-brand")
+#             product_name = item.select_one(".product-product")
+#             price = item.select_one(".product-discountedPrice, .product-price")
+#             link_tag = item.find("a", href=True)
+
+#             if brand and product_name and price and link_tag:
+#                 results.append({
+#                     "title": f"{brand.get_text(strip=True)} - {product_name.get_text(strip=True)}",
+#                     "price": price.get_text(strip=True),
+#                     "link": "https://www.myntra.com/" + link_tag['href']
+#                 })
+#         except Exception as e:
+#             print(f"Error parsing a Myntra item: {e}")
+#     return results
+
+# # ... (tatacliq and snapdeal functions would be updated similarly) ...
+# # For brevity, I'm showing the pattern. Apply the same try/except and
+# # fetch_direct logic to tatacliq and snapdeal.
+
+# # --- Performance Improvement: Concurrent Scraping ---
+
+# def get_home_products():
+#     """
+#     Scrapes all sites concurrently for a default query and returns the top 5 from each.
+#     """
+#     query = "laptop"
+#     data = {}
+    
+#     # List of functions to run, along with their site names
+#     scraper_tasks = {
+#         "amazon": amazon,
+#         "flipkart": flipkart,
+#         "meesho": meesho,
+#         "myntra": myntra,
+#         # "tatacliq": tatacliq,
+#         # "snapdeal": snapdeal,
+#     }
+    
+#     # Using ThreadPoolExecutor to run network requests in parallel
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=len(scraper_tasks)) as executor:
+#         # Create a future for each scraper function
+#         future_to_site = {executor.submit(func, query): site for site, func in scraper_tasks.items()}
+        
+#         for future in concurrent.futures.as_completed(future_to_site):
+#             site = future_to_site[future]
+#             try:
+#                 # Get the result and take the first 5 items
+#                 result = future.result()
+#                 data[site] = result[:5]
+#                 print(f"Successfully scraped {len(result)} items from {site}.")
+#             except Exception as exc:
+#                 print(f"{site} scraper generated an exception: {exc}")
+#                 data[site] = [] # Return empty list on failure
+
+#     return data
+
+
+# # --- Django Views ---
+
+# def home(request):
+#     products = get_home_products()
+#     return render(request, 'home.html', {"products": products})
+
+# def scrapedsites(request):
+#     return render(request, 'scrapedsites.html')
+
+# def contact(request):
+#     return render(request, 'contact.html')
+
+# # This view was empty. It must return an HttpResponse.
+# # I'll have it render a simple template for now.
+# def main(request):
+#     return render(request, 'main.html')

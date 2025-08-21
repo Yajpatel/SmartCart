@@ -6,53 +6,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static 'base.css' %}">
     {% block extra_css %}{% endblock %}
-    <title>Document</title>
+    <title>MyShop</title>
+    
+</style>
 </head>
 <body>
-    <!-- <h1>ok</h1> -->
-    <!-- First Navbar -->
-     <!-- <h1>hiii heyaa</h1> -->
     <nav class="main-navbar">
-    <div class="logo"><a href="{% url 'home' %}">MyShop</a></div>
+        <div class="logo"><a href="{% url 'home' %}">MyShop</a></div>
 
-    {% comment %} This block is now active {% endcomment %}
-    <div class="searchbar">
-        <form action="{% url 'search_results' %}" method="get">
-            <input type="text" name="q" placeholder="Search products..." required>
-            <button type="submit">Search</button>
-        </form>
-    </div>
+        <div class="searchbar">
+            <!-- This form now submits the search query to your main view -->
+            <form action="{% url 'home' %}" method="get">
+                <!-- The name 'q' is used to retrieve the query in views.py -->
+                <!-- The value is pre-filled with the current query to keep it in the box after searching -->
+                <input type="text" name="q" placeholder="Search products..." value="{{ query|default:'' }}" required>
+                <button type="submit">Search</button>
+            </form>
+        </div>
 
-    <div class="nav-links">
-        <a href="{% url 'scrapedsites' %}">scrapingsites</a>
-        <a href="{% url 'contact' %}">Contact</a>
-    </div>
-</nav>
-    
+        <div class="nav-links">
+            {% comment %} <a href="{% url 'scrapedsites' %}">scrapingsites</a>
+            <a href="{% url 'contact' %}">Contact</a> {% endcomment %}
+        </div>
+    </nav>
+
     <!-- Second Navbar (Selection Panel) -->
     <div class="selection-panel">
-        <div><a href="">Mobiles</a></div>
-        <div><a href="">Laptops</a></div>
-        <!-- i want this dropdown -->
-        <div><a href="">Clothes</a></div>
-        <!-- i want this dropdown -->
-        <div><a href="#">Accessories</a></div> 
-        <!-- i want this dropdown -->
-        <div><a href="#">Electronics</a></div>
-        <!-- i want this dropdown -->
-        <div><a href="#"></a></div>
-    </div>
+    <div><a href="{% url 'home' %}?q=mobiles">Mobiles</a></div>
+    <div><a href="{% url 'home' %}?q=laptops">Laptops</a></div>
+    <div><a href="{% url 'home' %}?q=shirts">Clothes</a></div>
+    <div><a href="{% url 'home' %}?q=accessories">Accessories</a></div> 
+    <div><a href="{% url 'home' %}?q=electronics">Electronics</a></div>
+</div>
 
-
-
-
-
-    {% comment %} main thing here... {% endcomment %}
     {% block content %}{% endblock %}
-
-
-
-
+    
     <!-- Footer -->
     <footer class="footer">
         <p>&copy; 2025 MyShop. All Rights Reserved.</p>
