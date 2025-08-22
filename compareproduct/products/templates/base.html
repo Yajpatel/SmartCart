@@ -1,49 +1,54 @@
-<!DOCTYPE html>
 {% load static %}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}E-commerce Scraper{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'base.css' %}">
     {% block extra_css %}{% endblock %}
-    <title>MyShop</title>
-    
-</style>
 </head>
 <body>
-    <nav class="main-navbar">
-        <div class="logo"><a href="{% url 'home' %}">MyShop</a></div>
-
-        <div class="searchbar">
-            <!-- This form now submits the search query to your main view -->
-            <form action="{% url 'home' %}" method="get">
-                <!-- The name 'q' is used to retrieve the query in views.py -->
-                <!-- The value is pre-filled with the current query to keep it in the box after searching -->
-                <input type="text" name="q" placeholder="Search products..." value="{{ query|default:'' }}" required>
-                <button type="submit">Search</button>
-            </form>
+    <header class="main-header">
+        <div class="logo">
+            <a href="{% url 'home' %}">Scraper</a>
         </div>
-
+        <nav class="search-nav">
+            <form action="{% url 'home' %}" method="get" class="search-form">
+                <input type="hidden" name="source" value="{{ source|default:'amazon' }}" id="source-input">
+                <input type="text" name="q" placeholder="Search for products..." value="{{ query|default:'' }}" class="search-input">
+                <button type="submit" class="search-button">Search</button>
+            </form>
+        </nav>
         <div class="nav-links">
-            {% comment %} <a href="{% url 'scrapedsites' %}">scrapingsites</a>
-            <a href="{% url 'contact' %}">Contact</a> {% endcomment %}
+            <a href="{% url 'home' %}" class="nav-link">Home</a>
+            <a href="{% url 'contact' %}" class="nav-link">Contact</a>
+        </div>
+    </header>
+
+    <nav class="source-selector-nav">
+        <div class="source-links">
+            <a href="?q={{ query|urlencode }}&source=amazon" 
+               class="source-btn {% if source == 'amazon' %}active{% endif %}">
+               Amazon 📦
+            </a>
+            <a href="?q={{ query|urlencode }}&source=snapdeal" 
+               class="source-btn {% if source == 'snapdeal' %}active{% endif %}">
+               Snapdeal 👻
+            
+            <a href="?q={{ query|urlencode }}&source=flipkart" 
+               class="source-btn {% if source == 'flipkart' %}active{% endif %}">
+               Flipkart 🚚
+            </a>
+            
         </div>
     </nav>
 
-    <!-- Second Navbar (Selection Panel) -->
-    <div class="selection-panel">
-    <div><a href="{% url 'home' %}?q=mobiles">Mobiles</a></div>
-    <div><a href="{% url 'home' %}?q=laptops">Laptops</a></div>
-    <div><a href="{% url 'home' %}?q=shirts">Clothes</a></div>
-    <div><a href="{% url 'home' %}?q=accessories">Accessories</a></div> 
-    <div><a href="{% url 'home' %}?q=electronics">Electronics</a></div>
-</div>
+    {% block content %}
+    {% endblock %}
 
-    {% block content %}{% endblock %}
-    
-    <!-- Footer -->
-    <footer class="footer">
-        <p>&copy; 2025 MyShop. All Rights Reserved.</p>
+    <footer class="main-footer">
+        <p>SmartCart &copy; {% now "Y" %}. Built with love.</p>
     </footer>
 
 </body>

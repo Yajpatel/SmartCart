@@ -1,79 +1,40 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Product Details{% endblock %}
+{% block title %}Product Detail{% endblock %}
 
 {% block extra_css %}
-{# Link to a new CSS file for specific detail page styling #}
-<link rel="stylesheet" href="{% static 'detail.css' %}">
+<link rel="stylesheet" href="{% static 'product_detail.css' %}">
 {% endblock %}
 
 {% block content %}
 <main class="content">
-    {# Main container to check if the product data exists #}
     {% if product %}
-        <div class="product-detail-container">
-            
-            {# Left Section: Product Image #}
-            <div class="product-image-section">
-                <img src="{{ product.image_url }}" alt="{{ product.title }}">
-            </div>
-            
-            {# Right Section: Product Information #}
-            <div class="product-info-section">
-                <h1 class="product-title">{{ product.title }}</h1>
-                
-                <div class="product-ratings">
-                    <span>{{ product.rating }}</span>
-                    <span> | </span>
-                    <span>{{ product.reviews_count }}</span>
+        <div class="detail-container">
+            <div class="product-detail-card-single">
+                <div class="image-column">
+                    <img src="{{ product.image_url }}" alt="{{ product.title }}" class="detail-image">
                 </div>
-                
-                <hr>
-
-                {% if product.price %}
-                <div class="product-price">
-                    Price: <span>{{ product.price }}</span>
+                <div class="info-column">
+                    <h2 class="detail-title">{{ product.title }}</h2>
+                    <p class="detail-price">{{ product.price|default:"Price not available" }}</p>
+                    <a href="{{ product.source_url }}" target="_blank" class="buy-button {% if product.source == 'Amazon' %}buy-amazon{% else %}buy-snapdeal{% endif %}">
+                        Buy on {{ product.source }}
+                    </a>
+                    {% if product.about_points %}
+                    <div class="about-section">
+                        <h3>About this item:</h3>
+                        <ul>
+                            {% for point in product.about_points %}
+                            <li>{{ point }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
-
-                {# "About this item" section #}
-                {% if product.about_points %}
-                <div class="about-section">
-                    <h3>About this item</h3>
-                    <ul>
-                        {% for point in product.about_points %}
-                        <li>{{ point }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-
-                {# The "Buy Now" button linking to the original Amazon URL #}
-                <a href="{{ product.amazon_url }}" target="_blank" class="buy-button">
-                    Buy this item on Amazon
-                </a>
             </div>
         </div>
 
-        {# Technical Specifications Table (displays below the main details) #}
-        {% if product.specifications %}
-        <div class="specifications-section">
-            <h2>Technical Details</h2>
-            <table class="spec-table">
-                <tbody>
-                    {% for key, value in product.specifications.items %}
-                    <tr>
-                        <th>{{ key }}</th>
-                        <td>{{ value }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endif %}
-
-    {# Handle cases where scraping fails or the URL is invalid #}
     {% elif error %}
         <div class="error-message">
             <h2>Error</h2>

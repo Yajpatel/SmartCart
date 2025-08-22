@@ -1,0 +1,20 @@
+/* contact.css - page-specific tweaks layered over base.css */
+
+.contact-card form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.contact-card input:focus,
+.contact-card textarea:focus {
+	outline: none;
+	border-color: var(--accent-primary);
+	box-shadow: 0 0 0 3px var(--shadow-color);
+}
+
+.contact-card .send-button {
+	align-self: flex-start;
+}
+
+

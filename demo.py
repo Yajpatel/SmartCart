@@ -1,106 +1,99 @@
-import requests
-import json
-from base64 import b64decode
-from bs4 import BeautifulSoup
+import time
+import random
+import undetected_chromedriver as uc
+uc.Chrome._del_ = lambda self: None
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 
-# --- Configuration ---
-# IMPORTANT: Replace "YOUR_API_KEY" with your actual Zyte API key.
-ZYTE_API_KEY = "31d677029a054280a79b6086ad61db26"
+PRICE_SELECTORS = [
+    "div.Nx9bqj.CxhGGd",
+    "div.Nx9bqj.CxhGGd.yKS4la",
+    # "div._30jeq3._16Jk6d",           
+    # "div._25b18c ._30jeq3._16Jk6d",  
+]
 
-# Example Amazon URL to scrape. This can be a product or search page.
-AMAZON_URL = "https://www.amazon.com/s?k=shirt"
+TITLE_SELECTORS = [
+    ".VU-ZEz",
+    # "span.B_NuCI",                   
+    # "h1.yhB1nd",                    
+    # "._6EBuvT",
+]
 
-# --- Main Scraping Logic ---
-def scrape_amazon_search(api_key, url):
-    """
-    Scrapes an Amazon search results page for its HTML, then extracts a list
-    of products with their title, price, and URL.
+def scrape_flipkart_price(url, driver):
+    print(f"\nScraping Flipkart URL: {url}")
 
-    Args:
-        api_key (str): Your Zyte API key.
-        url (str): The Amazon search results URL to scrape.
+    driver.get(url)
+    time.sleep(2 + random.random() * 2)
+    time.sleep(3)
 
-    Returns:
-        list: A list of dictionaries, where each dictionary represents a product.
-              Returns None on error.
-    """
-    if api_key == "YOUR_API_KEY" or not api_key:
-        print("❌ Error: Please replace 'YOUR_API_KEY' with your actual Zyte API key.")
-        return None
+    title = ""
+    for sel in TITLE_SELECTORS:
+        try:
+            el = driver.find_element(By.CSS_SELECTOR, sel)
+            title = el.text
+            print(f"Title found with selector: {sel} --> {title}")
+            if title:
+                break
+        except NoSuchElementException:
+            print(f"Title selector failed: {sel}")
+            continue
 
-    print(f"▶️  Sending request to Zyte API for URL: {url}")
+    price = None
+    for sel in PRICE_SELECTORS:
+        try:
+            el = driver.find_element(By.CSS_SELECTOR, sel)
+            price_text = el.text.replace("₹", "").replace(",", "").strip()
+            if price_text:
+                price = float(price_text)
+                print(f"Price found with selector: {sel} --> {price}")
+                break
+        except NoSuchElementException:
+            print(f"Price selector failed: {sel}")
+            continue
+        except ValueError:
+            print(f"Failed to convert price text: {el.text}")
+
+    if not title:
+        print("Title not found")
+    if not price:
+        print("Price not found")
+
+    return price, title
+
+def scrape_multiple_urls(urls):
+    options = uc.ChromeOptions()
+    options.headless = True
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/116.0.5845.179 Safari/537.36"
+    )
+
+    results = []
+    driver = uc.Chrome(options=options)
 
     try:
-        # Make the POST request to the Zyte API endpoint
-        response = requests.post(
-            "https://api.zyte.com/v1/extract",
-            auth=(api_key, ""),
-            json={
-                "url": url,
-                "httpResponseBody": True,  # Request the raw HTML body
-            },
-            timeout=90 # Increased timeout for potentially larger pages
-        )
+        for url in urls:
+            price, title = scrape_flipkart_price(url, driver)
+            results.append({"url": url, "title": title, "price": price})
+            time.sleep(random.uniform(2, 5))  # random delay between requests
+    finally:
+        driver.quit()
+        del driver   # ensures GC doesn’t try to clean up again
 
-        # Raise an exception for bad status codes (4xx or 5xx)
-        response.raise_for_status()
+    return results
 
-        api_response_json = response.json()
-        print("✅ Successfully received data from Zyte API.")
+if __name__ == "__main__":
+    urls = [
+        "https://www.flipkart.com/motorola-edge-60-fusion-5g-pantone-mykonos-blue-256-gb/p/itmdbb95e3f12ab6?pid=MOBH9ARFZXNHC7VZ&lid=LSTMOBH9ARFZXNHC7VZD9IAPG&marketplace=FLIPKART&store=tyy%2F4io&srno=b_1_1&otracker=clp_bannerads_1_8.bannerAdCard.BANNERADS_Motorola%2BEdge%2B60%2BFusion%2B5G_mobile-phones-store_9LO76G8QXECO&fm=organic&iid=229ede28-889e-4e2d-8319-894ac647c873.MOBH9ARFZXNHC7VZ.SEARCH&ppt=clp&ppn=mobile-phones-store&ssid=pcnagr1gfk0000001755764680593",
+        "https://www.flipkart.com/realme-p3-5g-space-silver-128-gb/p/itm69060f73d27e8?pid=MOBHAYN5ZXFQ3GFG&lid=LSTMOBHAYN5ZXFQ3GFGFUCV7J&marketplace=FLIPKART&store=tyy%2F4io&spotlightTagId=default_BestsellerId_tyy%2F4io&srno=b_1_1&otracker=CLP_BannerX3&fm=organic&iid=0a238da7-1ecf-4f90-85e4-fec27b07be4e.MOBHAYN5ZXFQ3GFG.SEARCH&ppt=browse&ppn=browse&ssid=g5knisouwg0000001755765660540",
+    ]
 
-        # Decode the base64 HTML content
-        html_body_bytes = b64decode(api_response_json["httpResponseBody"])
-        
-        # --- Parsing Logic ---
-        print("🔎 Parsing HTML and extracting product data...")
-        soup = BeautifulSoup(html_body_bytes, 'html.parser')
-        
-        products = []
-        # Find all elements that are individual search results
-        # Amazon often uses 's-result-item' for this container class
-        result_items = soup.find_all('div', {'data-component-type': 's-search-result'})
-        
-        if not result_items:
-            print("⚠️ No product items found. Amazon's layout may have changed.")
-            return []
-
-        for item in result_items:
-            title_element = item.find('h2')
-            title = title_element.get_text(strip=True) if title_element else None
-
-            # Find the price
-            price_whole = item.find('span', class_='a-price-whole')
-            price_fraction = item.find('span', class_='a-price-fraction')
-            price = f"{price_whole.text}{price_fraction.text}" if price_whole and price_fraction else None
-
-            # Find the product URL
-            url_element = item.find('a', class_='a-link-normal')
-            product_url = "https://www.amazon.com" + url_element['href'] if url_element else None
-
-            # Only add products that have a title and URL
-            if title and product_url and not "spons" in product_url:
-                products.append({
-                    'title': title,
-                    'price': price,
-                    'url': product_url
-                })
-        
-        return products
-
-    except requests.exceptions.RequestException as e:
-        print(f"❌ An error occurred during the API request: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ An unexpected error occurred during parsing: {e}")
-        return None
-
-
-scraped_products = scrape_amazon_search(ZYTE_API_KEY, AMAZON_URL)
-
-if scraped_products:
-    print(f"\n--- Found {len(scraped_products)} products ---")
-    # Print details for the first 5 products for brevity
-    for product in scraped_products[:]:
-        print(json.dumps(product, indent=2))
-    print("\n-------------------------------------------")
-
+    scraped_data = scrape_multiple_urls(urls)
+    print("\nFinal Results:")
+    for item in scraped_data:
+        print(item)

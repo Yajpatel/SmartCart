@@ -1,202 +1,291 @@
+
+# scraper/views.py
+
 from django.shortcuts import render
 from bs4 import BeautifulSoup
 import requests
 from base64 import b64decode, urlsafe_b64encode, urlsafe_b64decode
-from urllib.parse import urljoin
-import os
-import json
 
-# IMPORTANT: Replace "YOUR_API_KEY" with your actual Zyte API key.
+# IMPORTANT: Replace with your actual Zyte API key for Amazon scraping
 ZYTE_API_KEY = "31d677029a054280a79b6086ad61db26"
 
-def scrape_amazon_search(api_key, url):
-    """
-    Scrapes an Amazon search results page.
-    """
-    if api_key == "YOUR_API_KEY" or not api_key:
-        print("❌ Error: Please replace 'YOUR_API_KEY' with your actual Zyte API key.")
+# ===========================
+# Helper Fetch Functions
+# ===========================
+
+def fetch_url_zyte(url):
+    """Fetches URL content using Zyte API for JavaScript-heavy sites (Amazon)."""
+    if ZYTE_API_KEY == "YOUR_API_KEY" or not ZYTE_API_KEY:
+        print("❌ Error: Please provide a valid Zyte API key to scrape Amazon.")
         return None
-
-    print(f"▶️  Sending request to Zyte API for URL: {url}")
-
     try:
         response = requests.post(
             "https://api.zyte.com/v1/extract",
-            auth=(api_key, ""),
+            auth=(ZYTE_API_KEY, ""),
             json={"url": url, "httpResponseBody": True},
             timeout=90
         )
         response.raise_for_status()
-        api_response_json = response.json()
-        html_body_bytes = b64decode(api_response_json["httpResponseBody"])
-        soup = BeautifulSoup(html_body_bytes, 'html.parser')
-        
-        products = []
-        result_items = soup.find_all('div', {'data-component-type': 's-search-result'})
-        
-        if not result_items:
-            print("⚠️ No product items found on search page.")
-            return []
-
-        for item in result_items:
-            title_element = item.find('h2')
-            title = title_element.get_text(strip=True) if title_element else None
-
-            price = None
-            price_whole = item.find('span', class_='a-price-whole')
-            price_fraction = item.find('span', class_='a-price-fraction')
-            if price_whole and price_fraction:
-                price = f"${price_whole.text}{price_fraction.text}"
-            else:
-                price_offscreen = item.find('span', class_='a-offscreen')
-                if price_offscreen:
-                    price = price_offscreen.get_text(strip=True)
-
-            url_element = item.find('a', class_='a-link-normal')
-            product_url = "https://www.amazon.com" + url_element['href'] if url_element else None
-            
-            image_element = item.find('img', class_='s-image')
-            image_url = image_element['src'] if image_element else None
-
-            if title and product_url and "spons" not in product_url:
-                encoded_url = urlsafe_b64encode(product_url.encode()).decode()
-                products.append({
-                    'title': title,
-                    'price': price,
-                    'url': product_url,
-                    'image_url': image_url,
-                    'encoded_url': encoded_url
-                })
-        
-        return products
-
+        return b64decode(response.json()["httpResponseBody"])
     except requests.exceptions.RequestException as e:
-        print(f"❌ An error occurred during the API request: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ An unexpected error occurred during search parsing: {e}")
+        print(f"❌ Zyte API request error for {url}: {e}")
         return None
 
-def scrape_product_details(api_key, product_url):
-    """
-    Scrapes a single product detail page for detailed information.
-    """
-    if api_key == "YOUR_API_KEY" or not api_key:
-        return None
-    
-    print(f"▶️  Scraping detail page: {product_url}")
+
+def fetch_url_direct(url):
+    """Fetches URL content using direct request."""
     try:
-        response = requests.post(
-            "https://api.zyte.com/v1/extract",
-            auth=(api_key, ""),
-            json={"url": product_url, "httpResponseBody": True},
-            timeout=90
-        )
-        response.raise_for_status()
-        api_response_json = response.json()
-        html_body_bytes = b64decode(api_response_json["httpResponseBody"])
-        soup = BeautifulSoup(html_body_bytes, 'html.parser')
-
-        title = soup.find('span', id='productTitle').get_text(strip=True) if soup.find('span', id='productTitle') else "Not available"
-        
-        rating_element = soup.find('span', class_='a-icon-alt')
-        rating = rating_element.get_text(strip=True) if rating_element else "No rating"
-        
-        reviews_element = soup.find('span', id='acrCustomerReviewText')
-        reviews_count = reviews_element.get_text(strip=True) if reviews_element else "0 reviews"
-
-        price = None
-        price_element = soup.select_one('span.a-price .a-offscreen')
-        if price_element:
-            price = price_element.get_text(strip=True)
-
-    
-        
-        about_points = []
-        selector = "span.a-list-item.a-size-base.a-color-base"
-        
-        # Directly select all matching elements from the entire soup object
-        about_elements = soup.select(selector)
-        
-        for element in about_elements:
-            # Clean up the text, as it can sometimes have hidden characters or extra spaces
-            text = ' '.join(element.get_text(strip=True).split())
-            if text: # Ensure we don't add empty strings
-                about_points.append(text)
-        # --- END OF DIRECT LOGIC ---
-
-        specifications = {}
-        tech_spec_table = soup.find('table', id='productDetails_techSpec_section_1')
-        if tech_spec_table:
-            for row in tech_spec_table.find_all('tr'):
-                th = row.find('th').get_text(strip=True) if row.find('th') else ''
-                td = row.find('td').get_text(strip=True) if row.find('td') else ''
-                if th and td:
-                    specifications[th] = td
-        
-        image_element = soup.find('img', id='landingImage')
-        image_url = image_element['src'] if image_element else ''
-
-        return {
-            'title': title,
-            'rating': rating,
-            'reviews_count': reviews_count,
-            'price': price,
-            'about_points': about_points,
-            'specifications': specifications,
-            'image_url': image_url,
-            'amazon_url': product_url
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-
-    except Exception as e:
-        print(f"❌ An unexpected error occurred during detail parsing: {e}")
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Direct request error for {url}: {e}")
         return None
+
+
+# ===========================
+# Amazon Scraper (No Changes)
+# ===========================
+
+def scrape_amazon_search(query):
+    print(f"▶️  Scraping Amazon for: {query}")
+    url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
+    html_content = fetch_url_zyte(url)
+    if not html_content:
+        return []
+    soup = BeautifulSoup(html_content, 'html.parser')
+    products = []
+    for item in soup.find_all('div', {'data-component-type': 's-search-result'}):
+        title = item.find('h2').get_text(strip=True) if item.find('h2') else None
+        price = item.find('span', class_='a-offscreen').get_text(strip=True) if item.find('span', class_='a-offscreen') else None
+        product_url = "https://www.amazon.in" + item.find('a', class_='a-link-normal')['href'] if item.find('a', class_='a-link-normal') else None
+        image_url = item.find('img', class_='s-image')['src'] if item.find('img', class_='s-image') else None
+        if title and product_url and "spons" not in product_url:
+            products.append({
+                'title': title,
+                'price': price,
+                'url': product_url,
+                'image_url': image_url,
+                'encoded_url': urlsafe_b64encode(product_url.encode()).decode(),
+                'source': 'Amazon'
+            })
+    return products
+
+
+def scrape_amazon_details(product_url):
+    html_content = fetch_url_zyte(product_url)
+    if not html_content: return None
+    soup = BeautifulSoup(html_content, 'html.parser')
+    title = soup.find('span', id='productTitle').get_text(strip=True) if soup.find('span', id='productTitle') else "N/A"
+    price = soup.select_one('span.a-price .a-offscreen').get_text(strip=True) if soup.select_one('span.a-price .a-offscreen') else None
+    image = soup.find('img', id='landingImage')['src'] if soup.find('img', id='landingImage') else ''
+    about_points = [li.get_text(strip=True) for li in soup.select("#feature-bullets .a-list-item")]
+    return {'title': title, 'price': price, 'image_url': image, 'about_points': about_points, 'source_url': product_url, 'source': 'Amazon'}
+
+
+# ===========================
+# Snapdeal Scraper (No Changes)
+# ===========================
+
+def scrape_snapdeal_search(query):
+    print(f"▶️  Scraping Snapdeal for: {query}")
+    url = f"https://www.snapdeal.com/search?keyword={query.replace(' ', '+')}"
+    html_content = fetch_url_direct(url)
+    if not html_content:
+        return []
+    soup = BeautifulSoup(html_content, 'html.parser')
+    products = []
+    for item in soup.find_all('div', class_='product-tuple-listing'):
+        title = item.find('p', class_='product-title').get('title', 'N/A').strip()
+        price = item.find('span', class_='lfloat product-price').text.strip() if item.find('span', class_='lfloat product-price') else None
+        product_url = item.find('a', class_='dp-widget-link')['href'] if item.find('a', class_='dp-widget-link') else None
+        image_tag = item.find('img', class_='product-image')
+        image_url = image_tag.get('src') or image_tag.get('data-src') if image_tag else None
+        if title and product_url:
+            products.append({
+                'title': title,
+                'price': f"Rs. {price}" if price else "N/A",
+                'url': product_url,
+                'image_url': image_url,
+                'encoded_url': urlsafe_b64encode(product_url.encode()).decode(),
+                'source': 'Snapdeal'
+            })
+    return products
+
+
+def scrape_snapdeal_details(product_url):
+    html_content = fetch_url_direct(product_url)
+    if not html_content: return None
+    soup = BeautifulSoup(html_content, 'html.parser')
+    title = soup.find('h1', class_='pdp-e-i-head').get_text(strip=True) if soup.find('h1', class_='pdp-e-i-head') else "N/A"
+    price = soup.find('span', class_='payBlkBig').get_text(strip=True) if soup.find('span', class_='payBlkBig') else None
+    image = soup.find('img', class_='cloudzoom')['src'] if soup.find('img', class_='cloudzoom') else ''
+    about_points = [li.get_text(strip=True) for li in soup.select("div.detailssubbox ul li")]
+    return {'title': title, 'price': f"Rs. {price}" if price else "N/A", 'image_url': image, 'about_points': about_points, 'source_url': product_url, 'source': 'Snapdeal'}
+
+
+
+# ===========================
+# Flipkart Scraper (NEW)
+# ===========================
+
+def scrape_flipkart_search(query):
+    """
+    Scrapes search results from Flipkart for a given query.
+    """
+    print(f"▶️  Scraping Flipkart for: {query}")
+    url = f"https://www.flipkart.com/search?q={query.replace(' ', '+')}"
+    
+    # IMPORTANT: Flipkart often blocks simple requests. 
+    # Using fetch_url_direct may not work consistently. 
+    # Consider using fetch_url_zyte for better results.
+    html_content = fetch_url_direct(url)
+    if not html_content:
+        return []
+        
+    soup = BeautifulSoup(html_content, 'html.parser')
+    products = []
+    # Flipkart has multiple layouts, so we check for common container classes
+    # Layout 1: ._1AtVbE, Layout 2: ._4ddWXP, Layout 3: .cPHDOP
+    for item in soup.find_all('div', {'class': ['_1xHGtK', '_373qXS', '_4ddWXP', 'cPHDOP',"_1sdMkc LFEi7Z",'tUxRFH']}):
+        # Try finding title in different possible tags
+        title_tag = item.find('a', class_=['wjcEIp','WKTcLC']) or item.find("div",class_='KzDlHZ')
+        title = title_tag.get_text(strip=True) if title_tag else None
+
+        # Price is usually consistent
+        price_tag = item.find('div', class_=['Nx9bqj','Nx9bqj _4b5DiR'])
+        price = price_tag.get_text(strip=True) if price_tag else None
+        
+        # Find the main link to the product
+        link_tag = item.find('a', class_=['VJA3rP','rPDeLR','CGtC98']) or item.find('a', class_='s1Q9rs') or item.find('a', class_='_2UzuFa')
+        product_url = "https://www.flipkart.com" + link_tag['href'] if link_tag else None
+        
+        # Image is often lazy-loaded
+        image_tag = item.find('img', class_=['DByuf4','_53J4C-'])
+        image_url = image_tag['src'] if image_tag and image_tag.has_attr('src') else None
+        print(title,product_url,"price = ",price)
+        if title and product_url and price:
+            products.append({
+                'title': title,
+                'price': price,
+                'url': product_url,
+                'image_url': image_url,
+                'encoded_url': urlsafe_b64encode(product_url.encode()).decode(),
+                'source': 'Flipkart'
+            })
+            print("products = ",products)
+            
+    return products
+
+def scrape_flipkart_details(product_url):
+    """
+    Scrapes the details of a single product from its Flipkart URL.
+    """
+    html_content = fetch_url_direct(product_url)
+    if not html_content:
+        return None
+        
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Selectors based on your successful standalone script and common layouts
+    title = soup.find('span', class_='B_NuCI').get_text(strip=True) if soup.find('span', class_='B_NuCI') else "N/A"
+    price = soup.find('div', class_='_30jeq3 _16Jk6d').get_text(strip=True) if soup.find('div', class_='_30jeq3 _16Jk6d') else None
+    
+    # The main image can be in a few different containers
+    image_container = soup.find('div', class_='_2r_T1I _396cs4') or soup.find('img', class_='_2r_T1I _396cs4')
+    image = image_container['src'] if image_container else ''
+    
+    # "Highlights" section serves as the about points
+    about_points = [li.get_text(strip=True) for li in soup.select("div._2418kt ul li._21Ahn-")]
+    
+    return {
+        'title': title, 
+        'price': price, 
+        'image_url': image, 
+        'about_points': about_points, 
+        'source_url': product_url, 
+        'source': 'Flipkart'
+    }
+
+
+# ===========================
+# Django Views (No Changes)
+# ===========================
 
 def scraping(req):
-    """
-    Handles the home page and search requests.
-    """
-    product_query = req.GET.get('q', None)
-    context = {}
-
-    if product_query:
-        print(f"▶️  Searching for: {product_query}")
-        amazon_url = f"https://www.amazon.com/s?k={product_query}"
-        scraped_products = scrape_amazon_search(ZYTE_API_KEY, amazon_url)
-        context = {
-            'scraped_product': scraped_products if scraped_products is not None else [],
-            'query': product_query
-        }
-    else:
-        print("▶️  Displaying home page with categorized products.")
-        categories = ['laptops', 'mobiles', 'shirts', 'electronics']
-        categorized_products = {}
-        for category in categories:
-            amazon_url = f"https://www.amazon.com/s?k={category}"
-            products = scrape_amazon_search(ZYTE_API_KEY, amazon_url)
-            if products:
-                categorized_products[category.title()] = products[:6]
-            else:
-                categorized_products[category.title()] = []
-        context = {
-            'categorized_products': categorized_products,
-            'query': None
-        }
-    
-    return render(req, 'home.html', context)
-
-def product_detail(req, encoded_url):
-    """
-    Handles displaying the details for a single product.
-    """
-    try:
-        decoded_url = urlsafe_b64decode(encoded_url).decode()
-    except:
-        return render(req, 'product_detail.html', {'error': 'Invalid product URL.'})
-    
-    product_details = scrape_product_details(ZYTE_API_KEY, decoded_url)
+    """Handles search and homepage requests."""
+    product_query = req.GET.get('q', '').strip()
+    source = req.GET.get('source', 'amazon').strip().lower()
 
     context = {
-        'product': product_details
+        'query': product_query,
+        'source': source,
+        'scraped_products': []
     }
-    return render(req, 'product_detail.html', context)
+
+    if product_query:
+        print(f"▶️  Searching on '{source}' for: {product_query}")
+        if source == 'snapdeal':
+            context['scraped_products'] = scrape_snapdeal_search(product_query)
+        elif source == 'meesho':
+            context['scraped_products'] = scrape_meesho_search(product_query)
+        elif source == 'myntra':
+            context['scraped_products'] = scrape_myntra_search(product_query)
+        elif source == 'tatacliq':
+            context['scraped_products'] = scrape_tatacliq_search(product_query)
+        elif source == 'croma':
+            context['scraped_products'] = scrape_croma_search(product_query)
+        elif source == 'flipkart':
+            context['scraped_products'] = scrape_flipkart_search(product_query)
+        else:  # default Amazon
+            context['scraped_products'] = scrape_amazon_search(product_query)
+    else:
+        # Homepage default
+        print("▶️  Displaying categorized products from Amazon.")
+        categorized_products = {}
+        categories = ['laptops', 'mobiles', 'shirts']
+        for category in categories:
+            products = scrape_amazon_search(category)
+            categorized_products[category.title()] = products[:8]
+        context['categorized_products'] = categorized_products
+
+    return render(req, 'home.html', context)
+
+
+def product_detail(req, encoded_url):
+    """Handles single product details."""
+    try:
+        decoded_url = urlsafe_b64decode(encoded_url).decode()
+    except Exception:
+        return render(req, 'product_detail.html', {'error': 'Invalid product URL.'})
+
+    product = None
+    if 'amazon' in decoded_url: # A bit more robust
+        product = scrape_amazon_details(decoded_url)
+    elif 'snapdeal.com' in decoded_url:
+        product = scrape_snapdeal_details(decoded_url)
+    elif 'meesho.com' in decoded_url:
+        product = scrape_meesho_details(decoded_url)
+    elif 'myntra.com' in decoded_url:
+        product = scrape_myntra_details(decoded_url)
+    elif 'tatacliq.com' in decoded_url:
+        product = scrape_tatacliq_details(decoded_url)
+    elif 'flipkart.com' in decoded_url:
+        product = scrape_flipkart_details(decoded_url)
+    elif 'croma.com' in decoded_url:
+        product = scrape_croma_details(decoded_url)
+
+    return render(req, 'product_detail.html', {'product': product})
+
+
+def contact(req):
+    """Render contact page and handle basic POST for now."""
+    submitted = False
+    if req.method == 'POST':
+        # For now, just echo success; in real app, send email or store message
+        submitted = True
+    return render(req, 'contact.html', {'submitted': submitted})

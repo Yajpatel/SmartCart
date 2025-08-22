@@ -1,84 +1,65 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Scraped Products{% endblock %}
+{% block title %}
+    {% if query %}
+        Search Results for "{{ query }}" on {{ source|title }}
+    {% else %}
+        Featured Products
+    {% endif %}
+{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'home.css' %}">
-<style>
-    .category-title {
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid #eee;
-        font-size: 1.8rem;
-        color: #333;
-    }
-</style>
 {% endblock %}
 
 {% block content %}
 <main class="content">
     
-    <!-- Search Results Block -->
     {% if query %}
-        <h2>Search Results for: "{{ query }}"</h2>
-        {% if scraped_product %}
+        <h2>Search Results for: "{{ query }}" on <span class="source-name">{{ source|title }}</span></h2>
+        {% if scraped_products %}
             <div class="product-grid">
-                {% for product in scraped_product %}
+                {% for product in scraped_products %}
                     <div class="product-card">
-                        <!-- UPDATED LINK: Points to the new detail page URL -->
                         <a href="{% url 'product_detail' encoded_url=product.encoded_url %}" class="product-main-link">
+                            <div class="product-image-container">
+                                <img src="{{ product.image_url }}" alt="{{ product.title }}" class="product-image" onerror="this.style.display='none'">
+                            </div>
                             <div class="product-info">
-                                <img src="{{ product.image_url }}" alt="{{ product.title }}">
-                                <h4 class="product-title">{{ product.title|truncatechars:80 }}</h4>
-                                {% if product.price %}
-                                    <p class="product-price">{{ product.price }}</p>
-                                {% else %}
-                                    <p class="product-price">Price not available</p>
-                                {% endif %}
+                                <h4 class="product-title">{{ product.title|truncatechars:70 }}</h4>
+                                <p class="product-price">{{ product.price|default:"N/A" }}</p>
                             </div>
                         </a>
                     </div>
                 {% endfor %}
             </div>
         {% else %}
-            <p>No products were found for your search. Please try another term.</p>
+            <p>No products were found on {{ source|title }} for your search. Please try another term.</p>
         {% endif %}
 
-    <!-- Categorized Home Page Block -->
     {% else %}
-        <h2>Featured Products</h2>
+        <h2>Featured Products from Amazon</h2>
         {% if categorized_products %}
             {% for category, products in categorized_products.items %}
                 <h3 class="category-title">{{ category }}</h3>
-                {% if products %}
-                    <div class="product-grid">
-                        {% for product in products %}
-                            <div class="product-card">
-                                <!-- UPDATED LINK: Points to the new detail page URL -->
-                                <a href="{% url 'product_detail' encoded_url=product.encoded_url %}" class="product-main-link">
-                                    <div class="product-info">
-                                        <img src="{{ product.image_url }}" alt="{{ product.title }}">
-                                        <h4 class="product-title">{{ product.title|truncatechars:80 }}</h4>
-                                        {% if product.price %}
-                                            <p class="product-price">{{ product.price }}</p>
-                                        {% else %}
-                                            <p class="product-price">Price not available</p>
-                                        {% endif %}
-                                    </div>
-                                </a>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p>Could not load products for this category.</p>
-                {% endif %}
+                <div class="product-grid">
+                    {% for product in products %}
+                        <div class="product-card">
+                            <a href="{% url 'product_detail' encoded_url=product.encoded_url %}" class="product-main-link">
+                                <div class="product-image-container">
+                                    <img src="{{ product.image_url }}" alt="{{ product.title }}" class="product-image" onerror="this.style.display='none'">
+                                </div>
+                                <div class="product-info">
+                                    <h4 class="product-title">{{ product.title|truncatechars:70 }}</h4>
+                                    <p class="product-price">{{ product.price|default:"N/A" }}</p>
+                                </div>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
             {% endfor %}
-        {% else %}
-            <p>Could not load any featured products at this time.</p>
         {% endif %}
     {% endif %}
-
 </main>
 {% endblock %}
