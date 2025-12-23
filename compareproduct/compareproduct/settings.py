@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
-from dotenv import load_dotenv # <-- Import the function
+# from dotenv import load_dotenv # <-- Import the function
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,8 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --- ADD THIS CODE ---
 # This line finds the .env file in your repository root (smartcart/)
 # and loads its variables into the environment.
-env_path = BASE_DIR.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+# env_path = BASE_DIR.parent / '.env'
+# load_dotenv(dotenv_path=env_path)
 # --------------------
 
 
