@@ -1,12 +1,19 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
 
-WORKDIR /app/
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-COPY requirements.txt /app/
-COPY compareproduct /app/
+WORKDIR /app
 
-RUN apt-get update && \
-    pip install -r requirements.txt
+# Copy requirements first (layer caching)
+COPY requirements.txt .
 
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-CMD ["python","manage.py","runserver","0.0.0.0:8000"]
+# Copy Django project
+COPY compareproduct /app/compareproduct
+
+EXPOSE 8000
+
+CMD ["python", "compareproduct/manage.py", "runserver", "0.0.0.0:8000"]
